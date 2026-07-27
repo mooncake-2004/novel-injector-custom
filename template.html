@@ -1268,10 +1268,12 @@
           <div class="ni-field"><label>API Key</label><input type="password" id="ni-plot-api-key" placeholder="sk-..."></div>
           <div class="ni-field ni-model-row">
             <label>模型</label>
-            <div class="ni-model-field-wrap">
-              <div class="ni-model-input-wrap">
-                <input type="text" id="ni-plot-api-model-filter" placeholder="筛选模型…" autocomplete="off">
-                <select id="ni-plot-api-model"><option value="">请先拉取模型</option></select>
+            <div class="ni-model-field-wrap ni-plot-model-combobox">
+              <button type="button" id="ni-plot-api-model-toggle" class="ni-plot-model-toggle" aria-expanded="false"><span id="ni-plot-api-model-label">请先拉取模型</span><i class="ti ti-chevron-down"></i></button>
+              <div id="ni-plot-api-model-panel" class="ni-plot-model-panel" style="display:none">
+                <div class="ni-plot-model-search"><i class="ti ti-search"></i><input type="text" id="ni-plot-api-model-filter" placeholder="输入关键词筛选，例如 3.6" autocomplete="off"></div>
+                <div id="ni-plot-api-model-list" class="ni-plot-model-list"></div>
+                <input type="hidden" id="ni-plot-api-model" value="">
               </div>
               <button class="ni-icon-btn ni-model-refresh-btn" id="ni-plot-api-fetch-models" title="拉取模型列表"><i class="ti ti-refresh"></i></button>
             </div>

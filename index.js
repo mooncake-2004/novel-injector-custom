@@ -990,19 +990,18 @@ function niSyncPlotApiUI() {
 let niPlotApiModelIds = [];
 let niPlotApiSelectedModel = '';
 function niRenderPlotApiModelList(filter = '') {
-    const select = q('#ni-plot-api-model');
-    if (!select) return;
+    const list = q('#ni-plot-api-model-list');
+    const hidden = q('#ni-plot-api-model');
+    const label = q('#ni-plot-api-model-label');
+    if (!list || !hidden) return;
     const keyword = String(filter || '').trim().toLowerCase();
-    const current = niPlotApiSelectedModel || select.value || extension_settings[EXT_NAME]?.plotApiModel || '';
+    const current = niPlotApiSelectedModel || hidden.value || extension_settings[EXT_NAME]?.plotApiModel || '';
     const visible = niPlotApiModelIds.filter(id => !keyword || id.toLowerCase().includes(keyword));
-    select.innerHTML = `<option value="">${visible.length ? '请选择模型' : '没有匹配模型'}</option>` + visible.map(id => `<option value="${niEscAttr(id)}">${niEscHtml(id)}</option>`).join('');
-    if (visible.includes(current)) select.value = current;
-    select.onchange = () => {
-        niPlotApiSelectedModel = select.value || '';
-        const cfg = extension_settings[EXT_NAME] || {};
-        cfg.plotApiModel = niPlotApiSelectedModel;
-        saveSettingsDebounced();
-    };
+    list.innerHTML = visible.length
+        ? visible.map(id => `<button type="button" class="ni-plot-model-option${id === current ? ' selected' : ''}" data-model-id="${niEscAttr(id)}">${niEscHtml(id)}</button>`).join('')
+        : '<div class="ni-plot-model-empty">没有匹配模型</div>';
+    hidden.value = current;
+    if (label) label.textContent = current || (niPlotApiModelIds.length ? '请选择模型' : '请先拉取模型');
 }
 
 async function niFetchPlotApiModelList() {
@@ -1039,6 +1038,12 @@ async function niFetchPlotApiModelList() {
         const filter = q('#ni-plot-api-model-filter');
         if (filter) filter.value = '';
         niRenderPlotApiModelList('');
+        const panel = q('#ni-plot-api-model-panel');
+        if (panel) panel.style.display = '';
+        const toggle = q('#ni-plot-api-model-toggle');
+        if (toggle) { toggle.setAttribute('aria-expanded', 'true'); toggle.querySelector('i').className = 'ti ti-chevron-up'; }
+        const filterInput = q('#ni-plot-api-model-filter');
+        if (filterInput) setTimeout(() => filterInput.focus(), 20);
         globalThis.toastr?.success(`已拉取 ${niPlotApiModelIds.length} 个模型`);
     } catch (error) {
         alert(`模型拉取失败：${error?.message || error}`);
@@ -4225,7 +4230,35 @@ jQuery(async () => {
         niSaveSettings();
     });
     $app.on('click', '#ni-plot-api-fetch-models', () => niFetchPlotApiModelList());
+    $app.on('click', '#ni-plot-api-model-toggle', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        const panel = q('#ni-plot-api-model-panel');
+        if (!panel || !niPlotApiModelIds.length) return;
+        const open = panel.style.display === 'none';
+        panel.style.display = open ? '' : 'none';
+        this.setAttribute('aria-expanded', String(open));
+        this.querySelector('i').className = `ti ${open ? 'ti-chevron-up' : 'ti-chevron-down'}`;
+        if (open) {
+            const filter = q('#ni-plot-api-model-filter');
+            if (filter) { filter.value = ''; niRenderPlotApiModelList(''); setTimeout(() => filter.focus(), 20); }
+        }
+    });
     $app.on('input', '#ni-plot-api-model-filter', function() { niRenderPlotApiModelList(this.value); });
+    $app.on('click', '.ni-plot-model-option', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        niPlotApiSelectedModel = String($(this).data('model-id') || '');
+        const hidden = q('#ni-plot-api-model');
+        const label = q('#ni-plot-api-model-label');
+        if (hidden) hidden.value = niPlotApiSelectedModel;
+        if (label) label.textContent = niPlotApiSelectedModel;
+        const cfg = extension_settings[EXT_NAME] || {};
+        cfg.plotApiModel = niPlotApiSelectedModel;
+        saveSettingsDebounced();
+        const panel = q('#ni-plot-api-model-panel');
+        if (panel) panel.style.display = 'none';
+        const toggle = q('#ni-plot-api-model-toggle');
+        if (toggle) { toggle.setAttribute('aria-expanded', 'false'); toggle.querySelector('i').className = 'ti ti-chevron-down'; }
+    });
     $app.on('click', '#ni-plot-api-test', async function() {
         niSaveSettings();
         const note = q('#ni-plot-api-test-note');
