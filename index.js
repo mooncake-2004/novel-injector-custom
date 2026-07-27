@@ -1900,8 +1900,8 @@ const {
         niAutosave.schedule({ immediate: true });
     },
     onCleanCompleted: async () => {
-        const applied = await niAutoStageByPivot({ confirmMap: true, silent: true });
-        if (applied) globalThis.toastr?.success('清洗完成，已按关键转折自动划分阶段');
+        const applied = await niAutoStageByPivot({ confirmMap: true, silent: true, incremental: true });
+        if (applied) globalThis.toastr?.success('清洗完成，已续接最新阶段并按关键转折自动划分');
     },
 });
 
