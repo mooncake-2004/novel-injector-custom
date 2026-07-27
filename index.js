@@ -1231,8 +1231,23 @@ async function niConfirmPlotRewrite() {
 function niRenderCurrentPage() {
     const list = q('#ni-current-stage-list');
     if (!list) return;
-    const nodes = (typeof niGetTbNodes === 'function' ? niGetTbNodes() : []).filter(node => !node.done);
+    const allNodes = typeof niGetTbNodes === 'function' ? niGetTbNodes() : [];
+    const nodes = allNodes.filter(node => !node.done);
     const stages = (typeof niGetTbStages === 'function' ? niGetTbStages() : []).filter(stage => S.stageStates?.[stage.stageIdx] !== false);
+    const enabledStageIds = new Set(stages.map(stage => Number(stage.stageIdx)));
+    const selectableNodes = nodes.filter(node => enabledStageIds.has(Number(node.stageIdx)) && !node.locked);
+    const nodeSelect = q('#ni-current-node-select');
+    const nodeApply = q('#ni-current-node-apply');
+    if (nodeSelect) {
+        const currentNodeId = String(S.tbCurNodeId || '');
+        nodeSelect.innerHTML = stages.map(stage => {
+            const stageNodes = selectableNodes.filter(node => Number(node.stageIdx) === Number(stage.stageIdx));
+            if (!stageNodes.length) return '';
+            return `<optgroup label="${niEscAttr(`第 ${stage.stageIdx} 阶段 · ${stage.title || `阶段 ${stage.stageIdx}`}`)}">${stageNodes.map(node => `<option value="${niEscAttr(node.id)}"${String(node.id) === currentNodeId || String(node.legacyId || '') === currentNodeId ? ' selected' : ''}>${niEscHtml(node.title || '（未命名）')}</option>`).join('')}</optgroup>`;
+        }).join('');
+        nodeSelect.disabled = selectableNodes.length === 0;
+    }
+    if (nodeApply) nodeApply.disabled = selectableNodes.length === 0;
     const count = q('#ni-current-count-lbl');
     if (count) count.textContent = `启用 ${stages.length} 阶段 · 未归档 ${nodes.length} 节点`;
     if (!stages.length) {
@@ -1883,6 +1898,10 @@ const {
     onNovelFileLoaded: fileName => {
         niAutosave.setSourceFileName(fileName);
         niAutosave.schedule({ immediate: true });
+    },
+    onCleanCompleted: async () => {
+        const applied = await niAutoStageByPivot({ confirmMap: true, silent: true });
+        if (applied) globalThis.toastr?.success('清洗完成，已按关键转折自动划分阶段');
     },
 });
 
@@ -4533,6 +4552,24 @@ jQuery(async () => {
     });
     $app.on('click', '.ni-current-tl-head', function() {
         q(`#${$(this).data('current-tl-id')}`)?.classList.toggle('open');
+    });
+    $app.on('click', '#ni-current-node-apply', async function() {
+        const nodeId = String(q('#ni-current-node-select')?.value || '');
+        const nodes = typeof niGetTbNodes === 'function' ? niGetTbNodes() : [];
+        const index = nodes.findIndex(node => String(node.id) === nodeId || String(node.legacyId || '') === nodeId);
+        if (index < 0) { globalThis.toastr?.error('找不到所选剧情节点'); return; }
+        if (typeof niTbSetCurrentIdx !== 'function') { globalThis.toastr?.error('当前节点控制器尚未就绪'); return; }
+        this.disabled = true;
+        try {
+            niTbSetCurrentIdx(index, nodes, { persist: true, archivePrior: true });
+            niTbSetViewIdx?.(index, nodes, { render: true });
+            niRenderCurrentPage();
+            globalThis.toastr?.success(`已将「${nodes[index].title || '所选节点'}」设为当前节点`);
+        } catch (error) {
+            alert(`设置当前节点失败：${error?.message || error}`);
+        } finally {
+            this.disabled = false;
+        }
     });
 
     $app.on('click', '#ni-stage-enable-all', () => {

@@ -1352,6 +1352,14 @@
           <span class="ni-ml" id="ni-current-count-lbl">—</span>
         </div>
         <p class="ni-desc">仅显示当前已启用阶段中尚未归档的节点；主线、支线和关键转折按原著顺序排列。</p>
+        <div class="ni-current-node-picker">
+          <label for="ni-current-node-select"><i class="ti ti-list-search"></i>快速选择当前节点</label>
+          <div class="ni-current-node-picker-row">
+            <select id="ni-current-node-select" aria-label="选择当前剧情节点"></select>
+            <button type="button" class="ni-btn ni-btn-p ni-btn-inline" id="ni-current-node-apply"><i class="ti ti-current-location"></i>设为当前</button>
+          </div>
+          <p class="ni-current-node-picker-note">设为当前后，该节点之前的节点会自动归档。</p>
+        </div>
         <div id="ni-current-stage-list"><div class="ni-empty"><i class="ti ti-timeline"></i>暂无可显示的节点</div></div>
       </div>
     </div>

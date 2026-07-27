@@ -3718,6 +3718,12 @@ select.ni-modal-input {
 .ni-stage-folder-timeline,.ni-current-timeline{margin-top:2px}
 .ni-current-stage-folder{border:.5px solid var(--color-border-tertiary);border-radius:10px;overflow:hidden;margin-bottom:8px;background:var(--color-background-primary)}
 .ni-current-stage-head{border-top:0;font-weight:600;color:var(--ni-primary,#A0445E)}
+.ni-current-node-picker{margin:10px 0 12px;padding:10px;border:1px solid var(--ni-primary-alpha-15,rgba(160,68,94,.15));border-radius:10px;background:var(--color-background-secondary)}
+.ni-current-node-picker>label{display:flex;align-items:center;gap:6px;margin-bottom:7px;font-size:11px;font-weight:600;color:var(--color-text-primary)}
+.ni-current-node-picker-row{display:flex;align-items:stretch;gap:8px}
+.ni-current-node-picker-row select{flex:1;min-width:0;border:1px solid var(--color-border-secondary);border-radius:8px;padding:7px 9px;background:var(--color-background-primary);color:var(--color-text-primary);font:inherit}
+.ni-current-node-picker-note{margin:6px 0 0;font-size:10px;color:var(--color-text-tertiary)}
+@media (max-width:520px){.ni-current-node-picker-row{align-items:stretch;flex-direction:column}.ni-current-node-picker-row .ni-btn{width:100%;justify-content:center}}
 .ni-current-tl-head{display:flex;align-items:center;gap:7px;padding:8px;cursor:pointer;user-select:none}
 .ni-current-empty-stage,.ni-stage-folder-empty{padding:14px 8px}
 .ni-settings-raw-mode{justify-content:flex-start;gap:12px}
