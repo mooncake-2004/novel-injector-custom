@@ -1255,11 +1255,11 @@
       <!-- 剧情修改 API -->
       <div class="ni-card" id="ni-plot-rewrite-api-card">
         <div class="ni-ctitle"><span class="ni-ctitle-label"><i class="ti ti-wand"></i>剧情修改 API</span></div>
-        <p class="ni-desc">供剧情节点中的“AI 修改”使用。可直接复用清洗主 API，也可单独填写 OpenAI 兼容接口。</p>
+        <p class="ni-desc">供剧情节点中的“AI 修改”使用。主 API 指 SillyTavern 当前聊天正在使用的 API 和模型；独立 API 设置暂时保持原样。</p>
         <div class="ni-field">
           <label for="ni-plot-api-source">连接方式</label>
           <select id="ni-plot-api-source">
-            <option value="main">使用主 API（清洗 API）</option>
+            <option value="main">使用酒馆当前主 API</option>
             <option value="custom">使用独立 API</option>
           </select>
         </div>

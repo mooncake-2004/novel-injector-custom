@@ -1003,7 +1003,21 @@ async function niCopyText(text) {
 async function niCallPlotRewriteApi(messages, { test = false } = {}) {
     const cfg = extension_settings[EXT_NAME] || {};
     if ((cfg.plotApiSource || 'main') !== 'custom') {
-        return callApiSeq(messages, { responseLength: test ? 50 : 8000 });
+        // 仅在实际调用时动态获取，不在插件启动阶段导入，确保不影响顶部图标加载。
+        let generateRaw;
+        try {
+            ({ generateRaw } = await import('/script.js'));
+        } catch (error) {
+            throw new Error(`无法调用酒馆主 API：${error?.message || error}`);
+        }
+        if (typeof generateRaw !== 'function') {
+            throw new Error('当前 SillyTavern 版本不支持后台调用酒馆主 API');
+        }
+        return generateRaw({
+            prompt: messages,
+            responseLength: test ? 50 : 8000,
+            trimNames: false,
+        });
     }
     const url = String(cfg.plotApiUrl || '').trim();
     const key = String(cfg.plotApiKey || '').trim();
