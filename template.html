@@ -1364,10 +1364,21 @@
       <div class="ni-plot-rewrite-target" id="ni-plot-rewrite-target"></div>
       <label class="ni-modal-label" for="ni-plot-rewrite-instruction">修改要求</label>
       <textarea class="ni-cef-ta" id="ni-plot-rewrite-instruction" rows="5" placeholder="例如：精简到200字；保留关键信息并让语言更流畅"></textarea>
-      <p class="ni-desc">AI 返回后会直接替换此节点的剧情正文，不修改标题、时间、地点和节点归属。</p>
+      <p class="ni-desc">AI 返回后先生成对照预览，不会立即修改原文。确认覆盖后才会保存；标题、时间、地点和节点归属保持不变。</p>
+      <div class="ni-plot-rewrite-preview" id="ni-plot-rewrite-preview" style="display:none">
+        <section class="ni-plot-rewrite-pane">
+          <div class="ni-plot-rewrite-pane-title"><i class="ti ti-file-text"></i>修改前</div>
+          <div class="ni-plot-rewrite-text" id="ni-plot-rewrite-before"></div>
+        </section>
+        <section class="ni-plot-rewrite-pane ni-plot-rewrite-pane-after">
+          <div class="ni-plot-rewrite-pane-title"><i class="ti ti-sparkles"></i>修改后</div>
+          <div class="ni-plot-rewrite-text" id="ni-plot-rewrite-after"></div>
+        </section>
+      </div>
       <div class="ni-modal-btns">
         <button class="ni-modal-cancel" id="ni-plot-rewrite-cancel">取消</button>
-        <button class="ni-modal-confirm" id="ni-plot-rewrite-submit"><i class="ti ti-sparkles"></i>开始修改</button>
+        <button class="ni-modal-confirm" id="ni-plot-rewrite-submit"><i class="ti ti-sparkles"></i>生成修改预览</button>
+        <button class="ni-modal-confirm ni-plot-rewrite-confirm" id="ni-plot-rewrite-confirm" style="display:none"><i class="ti ti-check"></i>确认覆盖</button>
       </div>
     </div>
   </div>

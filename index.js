@@ -979,6 +979,21 @@ function niSyncDevAutoUI({ syncNote = false } = {}) {
 // 剧情复制与 AI 修改
 // ============================================================
 let niPlotRewriteTarget = null;
+let niPlotRewriteDraft = null;
+
+function niResetPlotRewritePreview() {
+    niPlotRewriteDraft = null;
+    const preview = q('#ni-plot-rewrite-preview');
+    if (preview) preview.style.display = 'none';
+    const before = q('#ni-plot-rewrite-before');
+    const after = q('#ni-plot-rewrite-after');
+    if (before) before.textContent = '';
+    if (after) after.textContent = '';
+    const confirmButton = q('#ni-plot-rewrite-confirm');
+    if (confirmButton) confirmButton.style.display = 'none';
+    const submitButton = q('#ni-plot-rewrite-submit');
+    if (submitButton) submitButton.innerHTML = '<i class="ti ti-sparkles"></i>生成修改预览';
+}
 
 function niSyncPlotApiUI() {
     const custom = q('#ni-plot-api-source')?.value === 'custom';
@@ -1129,15 +1144,17 @@ function niOpenPlotRewrite(type, nodeId) {
     if (target) target.textContent = `【${found.plot.title || '未命名'}】当前正文 ${String(found.plot.body || '').length} 字`;
     const input = q('#ni-plot-rewrite-instruction');
     if (input) { input.value = ''; setTimeout(() => input.focus(), 30); }
+    niResetPlotRewritePreview();
     const modal = q('#ni-plot-rewrite-modal');
     if (modal) modal.style.display = 'flex';
 }
 
 function niClosePlotRewrite() {
-    if (q('#ni-plot-rewrite-submit')?.disabled) return;
+    if (q('#ni-plot-rewrite-submit')?.disabled || q('#ni-plot-rewrite-confirm')?.disabled) return;
     const modal = q('#ni-plot-rewrite-modal');
     if (modal) modal.style.display = 'none';
     niPlotRewriteTarget = null;
+    niResetPlotRewritePreview();
 }
 
 async function niSubmitPlotRewrite() {
@@ -1148,21 +1165,63 @@ async function niSubmitPlotRewrite() {
     niSaveSettings();
     const button = q('#ni-plot-rewrite-submit');
     if (button) { button.disabled = true; button.innerHTML = '<i class="ti ti-loader"></i>修改中…'; }
+    const confirmButton = q('#ni-plot-rewrite-confirm');
+    if (confirmButton) confirmButton.disabled = true;
     try {
         const rewritten = await niCallPlotRewriteApi([{ role: 'user', content: `你是小说剧情编辑。请严格按照用户要求重写剧情正文。\n\n要求：\n1. 只输出重写后的剧情正文，不要解释，不要标题，不要 Markdown。\n2. 不得凭空改变人物、因果、时间、地点等核心事实，除非用户要求明确要求。\n3. 用户要求：${instruction}\n\n剧情标题：${found.plot.title || '未命名'}\n原剧情正文：\n${found.plot.body || ''}` }]);
         const clean = String(rewritten || '').replace(/^```(?:text|markdown)?\s*/i, '').replace(/```$/i, '').trim();
         if (!clean) throw new Error('AI 没有返回有效正文');
-        found.plot.body = clean;
-        niSaveSettings();
-        if (S.novelKey) await niServerSaveHeavy(S.novelKey, S.heavyFileKey);
-        renderPlots(); buildStages(); niRenderCurrentPage();
-        q('#ni-plot-rewrite-modal').style.display = 'none';
-        niPlotRewriteTarget = null;
-        globalThis.toastr?.success('剧情已修改并保存');
+        niPlotRewriteDraft = {
+            type: found.type,
+            nodeId: String(niPlotRewriteTarget.nodeId),
+            originalBody: String(found.plot.body || ''),
+            rewrittenBody: clean,
+        };
+        const before = q('#ni-plot-rewrite-before');
+        const after = q('#ni-plot-rewrite-after');
+        if (before) before.textContent = niPlotRewriteDraft.originalBody;
+        if (after) after.textContent = niPlotRewriteDraft.rewrittenBody;
+        const preview = q('#ni-plot-rewrite-preview');
+        if (preview) preview.style.display = '';
+        const confirmButton = q('#ni-plot-rewrite-confirm');
+        if (confirmButton) confirmButton.style.display = '';
+        globalThis.toastr?.success('修改预览已生成，请确认后覆盖');
     } catch (error) {
         alert(`AI 修改失败：${error?.message || error}`);
     } finally {
-        if (button) { button.disabled = false; button.innerHTML = '<i class="ti ti-sparkles"></i>开始修改'; }
+        if (button) { button.disabled = false; button.innerHTML = `<i class="ti ti-sparkles"></i>${niPlotRewriteDraft ? '重新生成预览' : '生成修改预览'}`; }
+        if (confirmButton) confirmButton.disabled = false;
+    }
+}
+
+async function niConfirmPlotRewrite() {
+    const draft = niPlotRewriteDraft;
+    const found = draft && niFindPlotByNodeId(draft.type, draft.nodeId);
+    if (!draft || !found) { alert('修改预览已失效，请重新生成'); return; }
+    if (String(found.plot.body || '') !== draft.originalBody) {
+        alert('原剧情在预览生成后已发生变化，为避免覆盖新内容，请重新生成预览');
+        niResetPlotRewritePreview();
+        return;
+    }
+    const button = q('#ni-plot-rewrite-confirm');
+    if (button) { button.disabled = true; button.innerHTML = '<i class="ti ti-loader"></i>保存中…'; }
+    try {
+        found.plot.body = draft.rewrittenBody;
+        niSaveSettings();
+        if (S.novelKey) await niServerSaveHeavy(S.novelKey, S.heavyFileKey);
+        renderPlots(); buildStages(); niRenderCurrentPage();
+        const modal = q('#ni-plot-rewrite-modal');
+        if (modal) modal.style.display = 'none';
+        niPlotRewriteTarget = null;
+        niResetPlotRewritePreview();
+        globalThis.toastr?.success('已确认覆盖并保存');
+    } catch (error) {
+        // 重数据保存失败时恢复原正文，避免界面状态与持久化结果不一致。
+        found.plot.body = draft.originalBody;
+        niSaveSettings();
+        alert(`保存修改失败：${error?.message || error}`);
+    } finally {
+        if (button) { button.disabled = false; button.innerHTML = '<i class="ti ti-check"></i>确认覆盖'; }
     }
 }
 
@@ -4223,6 +4282,7 @@ jQuery(async () => {
     $app.on('click', '#ni-plot-rewrite-cancel', () => niClosePlotRewrite());
     $app.on('click', '#ni-plot-rewrite-modal', function(e) { if (e.target === this) niClosePlotRewrite(); });
     $app.on('click', '#ni-plot-rewrite-submit', () => niSubmitPlotRewrite());
+    $app.on('click', '#ni-plot-rewrite-confirm', () => niConfirmPlotRewrite());
     $app.on('change', '#ni-plot-api-source', function() { niSyncPlotApiUI(); niSaveSettings(); });
     $app.on('input change', '#ni-plot-api-url, #ni-plot-api-key', () => niSaveSettings());
     $app.on('click', '#ni-plot-api-url-default', function() {
