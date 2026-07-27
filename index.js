@@ -208,6 +208,10 @@ const DEFAULT_SETTINGS = {
     cleanUrl: 'https://api.openai.com/v1/chat/completions',
     cleanModel: 'gpt-4o',
     cleanStream: false,
+    plotApiSource: 'main',
+    plotApiKey: '',
+    plotApiUrl: 'https://api.openai.com/v1/chat/completions',
+    plotApiModel: 'gpt-4o-mini',
     vecKey: '',
     vecUrl: 'https://api.openai.com/v1',
     vecModel: 'text-embedding-3-large',
@@ -631,6 +635,10 @@ function niSaveSettings() {
     cfg.cleanUrl    = q('#ni-clean-url')?.value || cfg.cleanUrl;
     cfg.cleanModel  = q('#ni-clean-model')?.value || cfg.cleanModel;
     cfg.cleanStream = q('#ni-clean-stream')?.checked ?? cfg.cleanStream;
+    cfg.plotApiSource = q('#ni-plot-api-source')?.value === 'custom' ? 'custom' : 'main';
+    cfg.plotApiKey = q('#ni-plot-api-key')?.value ?? cfg.plotApiKey;
+    cfg.plotApiUrl = q('#ni-plot-api-url')?.value?.trim() || cfg.plotApiUrl;
+    cfg.plotApiModel = q('#ni-plot-api-model')?.value?.trim() || cfg.plotApiModel;
     cfg.vecKey      = q('#ni-vec-key')?.value || cfg.vecKey;
     cfg.vecUrl      = q('#ni-vec-url')?.value || cfg.vecUrl;
     cfg.vecModel    = q('#ni-vec-model')?.value || cfg.vecModel;
@@ -731,6 +739,11 @@ function syncSettingsToUI() {
     sv('#ni-clean-key',    cfg.cleanKey    || '');
     sv('#ni-clean-url',    cfg.cleanUrl    || DEFAULT_SETTINGS.cleanUrl);
     sv('#ni-clean-model',  cfg.cleanModel  || DEFAULT_SETTINGS.cleanModel);
+    sv('#ni-plot-api-source', cfg.plotApiSource || DEFAULT_SETTINGS.plotApiSource);
+    sv('#ni-plot-api-key', cfg.plotApiKey || '');
+    sv('#ni-plot-api-url', cfg.plotApiUrl || DEFAULT_SETTINGS.plotApiUrl);
+    sv('#ni-plot-api-model', cfg.plotApiModel || DEFAULT_SETTINGS.plotApiModel);
+    niSyncPlotApiUI();
     const streamEl = q('#ni-clean-stream');
     if (streamEl) {
         streamEl.checked = cfg.cleanStream ?? DEFAULT_SETTINGS.cleanStream;
@@ -959,6 +972,116 @@ function niSyncDevAutoUI({ syncNote = false } = {}) {
 }
 
 // ============================================================
+// 剧情复制与 AI 修改
+// ============================================================
+let niPlotRewriteTarget = null;
+
+function niSyncPlotApiUI() {
+    const custom = q('#ni-plot-api-source')?.value === 'custom';
+    const fields = q('#ni-plot-api-custom-fields');
+    if (fields) fields.style.display = custom ? '' : 'none';
+}
+
+function niFindPlotByNodeId(type, nodeId) {
+    if (!['main', 'sub', 'pivot'].includes(type)) return null;
+    const list = S.plots?.[type] || [];
+    const index = list.findIndex((plot, idx) => niEnsurePlotNodeId(plot, type, idx) === String(nodeId || ''));
+    return index >= 0 ? { type, index, plot: list[index] } : null;
+}
+
+async function niCopyText(text) {
+    const value = String(text || '');
+    if (!value) throw new Error('剧情正文为空');
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value);
+    const area = document.createElement('textarea');
+    area.value = value; area.style.position = 'fixed'; area.style.opacity = '0';
+    document.body.appendChild(area); area.select();
+    const ok = document.execCommand('copy'); area.remove();
+    if (!ok) throw new Error('浏览器拒绝复制');
+}
+
+async function niCallPlotRewriteApi(messages, { test = false } = {}) {
+    const cfg = extension_settings[EXT_NAME] || {};
+    if ((cfg.plotApiSource || 'main') !== 'custom') {
+        return callApiSeq(messages, { responseLength: test ? 50 : 8000 });
+    }
+    const url = String(cfg.plotApiUrl || '').trim();
+    const key = String(cfg.plotApiKey || '').trim();
+    const model = String(cfg.plotApiModel || '').trim();
+    if (!url || !model) throw new Error('请先在设置页填写独立 API URL 和模型');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Math.max(1, Number(cfg.apiTimeoutMin) || 15) * 60 * 1000);
+    try {
+        // 通过 SillyTavern 的 OpenAI 兼容代理发送，避免浏览器跨域限制。
+        const response = await fetch('/api/backends/chat-completions/generate', {
+            method: 'POST',
+            headers: { ...getRequestHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_completion_source: 'openai', messages, model,
+                max_tokens: test ? 50 : 8000, temperature: 0.3, stream: false,
+                reverse_proxy: url, proxy_password: key,
+            }),
+            signal: controller.signal,
+        });
+        const raw = await response.text();
+        if (!response.ok) throw new Error(`API ${response.status}: ${raw.slice(0, 200)}`);
+        let json;
+        try { json = JSON.parse(raw); } catch { throw new Error('API 返回的不是有效 JSON'); }
+        const text = json?.choices?.[0]?.message?.content || json?.choices?.[0]?.text || json?.content?.[0]?.text || json?.content || json?.output_text || json?.output;
+        if (typeof text !== 'string' || !text.trim()) throw new Error('API 返回内容为空或格式不兼容');
+        return text.trim();
+    } catch (error) {
+        if (error?.name === 'AbortError') throw new Error('剧情修改 API 请求超时');
+        throw error;
+    } finally { clearTimeout(timeout); }
+}
+
+function niOpenPlotRewrite(type, nodeId) {
+    const found = niFindPlotByNodeId(type, nodeId);
+    if (!found) { globalThis.toastr?.error('找不到这个剧情节点'); return; }
+    niPlotRewriteTarget = { type, nodeId: String(nodeId) };
+    const target = q('#ni-plot-rewrite-target');
+    if (target) target.textContent = `【${found.plot.title || '未命名'}】当前正文 ${String(found.plot.body || '').length} 字`;
+    const input = q('#ni-plot-rewrite-instruction');
+    if (input) { input.value = ''; setTimeout(() => input.focus(), 30); }
+    const modal = q('#ni-plot-rewrite-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function niClosePlotRewrite() {
+    if (q('#ni-plot-rewrite-submit')?.disabled) return;
+    const modal = q('#ni-plot-rewrite-modal');
+    if (modal) modal.style.display = 'none';
+    niPlotRewriteTarget = null;
+}
+
+async function niSubmitPlotRewrite() {
+    const found = niPlotRewriteTarget && niFindPlotByNodeId(niPlotRewriteTarget.type, niPlotRewriteTarget.nodeId);
+    const instruction = q('#ni-plot-rewrite-instruction')?.value?.trim();
+    if (!found) { alert('剧情节点已不存在，请重新打开'); return; }
+    if (!instruction) { alert('请填写修改要求'); return; }
+    niSaveSettings();
+    const button = q('#ni-plot-rewrite-submit');
+    if (button) { button.disabled = true; button.innerHTML = '<i class="ti ti-loader"></i>修改中…'; }
+    try {
+        const rewritten = await niCallPlotRewriteApi([{ role: 'user', content: `你是小说剧情编辑。请严格按照用户要求重写剧情正文。\n\n要求：\n1. 只输出重写后的剧情正文，不要解释，不要标题，不要 Markdown。\n2. 不得凭空改变人物、因果、时间、地点等核心事实，除非用户要求明确要求。\n3. 用户要求：${instruction}\n\n剧情标题：${found.plot.title || '未命名'}\n原剧情正文：\n${found.plot.body || ''}` }]);
+        const clean = String(rewritten || '').replace(/^```(?:text|markdown)?\s*/i, '').replace(/```$/i, '').trim();
+        if (!clean) throw new Error('AI 没有返回有效正文');
+        found.plot.body = clean;
+        niSaveSettings();
+        if (S.novelKey) await niServerSaveHeavy(S.novelKey, S.heavyFileKey);
+        renderPlots(); buildStages(); niRenderCurrentPage();
+        q('#ni-plot-rewrite-modal').style.display = 'none';
+        niPlotRewriteTarget = null;
+        globalThis.toastr?.success('剧情已修改并保存');
+    } catch (error) {
+        alert(`AI 修改失败：${error?.message || error}`);
+    } finally {
+        if (button) { button.disabled = false; button.innerHTML = '<i class="ti ti-sparkles"></i>开始修改'; }
+    }
+}
+
+// ============================================================
 // 页面切换
 // ============================================================
 function niRenderCurrentPage() {
@@ -979,7 +1102,7 @@ function niRenderCurrentPage() {
             const [label, cls] = typeMeta[node.type] || typeMeta.main;
             const id = `ni-cur-tl-${stage.stageIdx}-${index}`;
             const meta = (node.time || node.location) ? `<div class="ni-tl-meta">${node.time ? `<span class="ni-pmeta"><i class="ti ti-clock"></i>${niEscHtml(node.time)}</span>` : ''}${node.location ? `<span class="ni-pmeta"><i class="ti ti-map-pin"></i>${niEscHtml(node.location)}</span>` : ''}</div>` : '';
-            return `<div class="ni-tl-item${node.type === 'pivot' ? ' ni-tl-pivot' : ''}" id="${id}"><div class="ni-tl-spine"><div class="ni-tl-dot${node.type === 'pivot' ? ' ni-tl-dot-pivot' : ''}"></div><div class="ni-tl-line"></div></div><div class="ni-tl-content"><div class="ni-current-tl-head" data-current-tl-id="${id}"><span class="ni-badge ${cls}">${label}</span><span class="ni-plot-name">${niEscHtml(node.title || '（未命名）')}</span><i class="ti ti-chevron-down ni-plot-chev"></i></div><div class="ni-tl-body"><p class="ni-plot-txt">${niEscHtml(node.body || '')}</p>${meta}</div></div></div>`;
+            return `<div class="ni-tl-item${node.type === 'pivot' ? ' ni-tl-pivot' : ''}" id="${id}"><div class="ni-tl-spine"><div class="ni-tl-dot${node.type === 'pivot' ? ' ni-tl-dot-pivot' : ''}"></div><div class="ni-tl-line"></div></div><div class="ni-tl-content"><div class="ni-current-tl-head" data-current-tl-id="${id}"><span class="ni-badge ${cls}">${label}</span><span class="ni-plot-name">${niEscHtml(node.title || '（未命名）')}</span><i class="ti ti-chevron-down ni-plot-chev"></i></div><div class="ni-tl-body"><p class="ni-plot-txt">${niEscHtml(node.body || '')}</p><div class="ni-plot-node-actions"><button type="button" class="ni-plot-copy-btn" data-plot-type="${node.type}" data-node-id="${niEscAttr(node.id)}"><i class="ti ti-copy"></i>复制</button><button type="button" class="ni-plot-ai-rewrite-btn" data-plot-type="${node.type}" data-node-id="${niEscAttr(node.id)}"><i class="ti ti-wand"></i>AI 修改</button></div>${meta}</div></div></div>`;
         }).join('')}</div>` : '<div class="ni-empty ni-current-empty-stage">本阶段节点均已归档</div>';
         return `<section class="ni-current-stage-folder"><button type="button" class="ni-current-stage-head" data-current-stage="${stage.stageIdx}" aria-expanded="true"><span><i class="ti ti-folder-open"></i>第 ${stage.stageIdx} 阶段 · ${niEscHtml(stage.title || `阶段 ${stage.stageIdx}`)}</span><span>${stageNodes.length} 个未归档 <i class="ti ti-chevron-up"></i></span></button><div class="ni-current-stage-body" id="ni-current-stage-${stage.stageIdx}">${timeline}</div></section>`;
     }).join('');
@@ -3986,6 +4109,31 @@ jQuery(async () => {
     $app.on('click', '#ni-char-del-cancel-btn', () => niToggleCharDel());
     // 删除模式：确认删除
     $app.on('click', '#ni-char-del-confirm-btn', () => niConfirmCharDel());
+
+    $app.on('click', '.ni-plot-copy-btn', async function(e) {
+        e.preventDefault(); e.stopPropagation();
+        const found = niFindPlotByNodeId(String($(this).data('plot-type')), String($(this).data('node-id')));
+        if (!found) { globalThis.toastr?.error('找不到这个剧情节点'); return; }
+        try { await niCopyText(found.plot.body || ''); globalThis.toastr?.success('剧情已复制'); }
+        catch (error) { alert(`复制失败：${error?.message || error}`); }
+    });
+    $app.on('click', '.ni-plot-ai-rewrite-btn', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        niOpenPlotRewrite(String($(this).data('plot-type')), String($(this).data('node-id')));
+    });
+    $app.on('click', '#ni-plot-rewrite-cancel', () => niClosePlotRewrite());
+    $app.on('click', '#ni-plot-rewrite-modal', function(e) { if (e.target === this) niClosePlotRewrite(); });
+    $app.on('click', '#ni-plot-rewrite-submit', () => niSubmitPlotRewrite());
+    $app.on('change', '#ni-plot-api-source', function() { niSyncPlotApiUI(); niSaveSettings(); });
+    $app.on('input change', '#ni-plot-api-url, #ni-plot-api-key, #ni-plot-api-model', () => niSaveSettings());
+    $app.on('click', '#ni-plot-api-test', async function() {
+        niSaveSettings();
+        const note = q('#ni-plot-api-test-note');
+        this.disabled = true; if (note) note.textContent = '连接中…';
+        try { await niCallPlotRewriteApi([{ role: 'user', content: '只回复：连接成功' }], { test: true }); if (note) note.textContent = '连接成功'; }
+        catch (error) { if (note) note.textContent = `失败：${error?.message || error}`; }
+        finally { this.disabled = false; }
+    });
 
     // 动态生成元素的事件委托
     $app.on('click', '.ni-plot-head', function(e) {
