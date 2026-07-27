@@ -3733,3 +3733,6 @@ select.ni-modal-input {
 #ni-plot-api-test-note{overflow-wrap:anywhere}
 #ni-plot-api-model-filter{flex:0 0 42%;border-radius:8px 0 0 8px}
 #ni-plot-api-model{flex:1;border-radius:0 8px 8px 0;border-left:0}
+.ni-plot-api-url-row{display:flex;align-items:center;gap:5px}
+.ni-plot-api-url-row input{flex:1;min-width:0}
+.ni-field-hint{display:block;margin-top:4px;color:var(--color-text-tertiary);font-size:10px;line-height:1.45}

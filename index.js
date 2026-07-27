@@ -1012,13 +1012,27 @@ async function niFetchPlotApiModelList() {
     if (!root) { alert('请先填写 API 根地址，例如 https://example.com/v1'); return; }
     if (button) { button.disabled = true; button.querySelector('i').className = 'ti ti-loader'; }
     try {
-        const modelsUrl = `${root.replace(/\/chat\/completions\/?$/, '').replace(/\/$/, '')}/models`;
-        const response = await fetch(modelsUrl, {
-            headers: { ...(key ? { Authorization: `Bearer ${key}` } : {}), 'Content-Type': 'application/json' },
+        // 通过 SillyTavern 服务端代理拉取，避免浏览器直接访问第三方 /models 时被 CORS 拦截。
+        const response = await fetch('/api/backends/chat-completions/status', {
+            method: 'POST',
+            headers: { ...getRequestHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_completion_source: 'openai',
+                reverse_proxy: root.replace(/\/chat\/completions\/?$/, '').replace(/\/$/, ''),
+                proxy_password: key,
+            }),
+            cache: 'no-cache',
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+            const detail = await response.text().catch(() => '');
+            throw new Error(`HTTP ${response.status}${detail ? `：${detail.slice(0, 120)}` : ''}`);
+        }
         const payload = await response.json();
-        const items = payload?.data || payload?.models || [];
+        const items = Array.isArray(payload?.data)
+            ? payload.data
+            : (Array.isArray(payload?.models)
+                ? payload.models
+                : (Array.isArray(payload?.data?.data) ? payload.data.data : []));
         niPlotApiModelIds = [...new Set((Array.isArray(items) ? items : []).map(item => typeof item === 'string' ? item : item?.id).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b));
         if (!niPlotApiModelIds.length) throw new Error('接口没有返回模型');
         niPlotApiSelectedModel = extension_settings[EXT_NAME]?.plotApiModel || '';
@@ -4205,6 +4219,11 @@ jQuery(async () => {
     $app.on('click', '#ni-plot-rewrite-submit', () => niSubmitPlotRewrite());
     $app.on('change', '#ni-plot-api-source', function() { niSyncPlotApiUI(); niSaveSettings(); });
     $app.on('input change', '#ni-plot-api-url, #ni-plot-api-key', () => niSaveSettings());
+    $app.on('click', '#ni-plot-api-url-default', function() {
+        const input = q('#ni-plot-api-url');
+        if (input) input.value = DEFAULT_SETTINGS.plotApiUrl;
+        niSaveSettings();
+    });
     $app.on('click', '#ni-plot-api-fetch-models', () => niFetchPlotApiModelList());
     $app.on('input', '#ni-plot-api-model-filter', function() { niRenderPlotApiModelList(this.value); });
     $app.on('click', '#ni-plot-api-test', async function() {
