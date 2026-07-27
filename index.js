@@ -1040,6 +1040,7 @@ async function niFetchPlotApiModelList() {
         niRenderPlotApiModelList('');
         const panel = q('#ni-plot-api-model-panel');
         if (panel) panel.style.display = '';
+        q('#ni-plot-rewrite-api-card')?.classList.add('ni-model-dropdown-open');
         const toggle = q('#ni-plot-api-model-toggle');
         if (toggle) { toggle.setAttribute('aria-expanded', 'true'); toggle.querySelector('i').className = 'ti ti-chevron-up'; }
         const filterInput = q('#ni-plot-api-model-filter');
@@ -4236,6 +4237,7 @@ jQuery(async () => {
         if (!panel || !niPlotApiModelIds.length) return;
         const open = panel.style.display === 'none';
         panel.style.display = open ? '' : 'none';
+        q('#ni-plot-rewrite-api-card')?.classList.toggle('ni-model-dropdown-open', open);
         this.setAttribute('aria-expanded', String(open));
         this.querySelector('i').className = `ti ${open ? 'ti-chevron-up' : 'ti-chevron-down'}`;
         if (open) {
@@ -4256,6 +4258,7 @@ jQuery(async () => {
         saveSettingsDebounced();
         const panel = q('#ni-plot-api-model-panel');
         if (panel) panel.style.display = 'none';
+        q('#ni-plot-rewrite-api-card')?.classList.remove('ni-model-dropdown-open');
         const toggle = q('#ni-plot-api-model-toggle');
         if (toggle) { toggle.setAttribute('aria-expanded', 'false'); toggle.querySelector('i').className = 'ti ti-chevron-down'; }
     });
