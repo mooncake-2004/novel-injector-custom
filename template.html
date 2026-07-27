@@ -1255,18 +1255,25 @@
       <!-- 剧情修改 API -->
       <div class="ni-card" id="ni-plot-rewrite-api-card">
         <div class="ni-ctitle"><span class="ni-ctitle-label"><i class="ti ti-wand"></i>剧情修改 API</span></div>
-        <p class="ni-desc">供剧情节点中的“AI 修改”使用。可直接复用清洗主 API，也可单独填写 OpenAI 兼容接口。</p>
+        <p class="ni-desc">供剧情节点中的“AI 修改”使用。主 API 指 SillyTavern 当前聊天正在使用的 API 和模型；也可以保存并使用独立的 OpenAI 兼容 API。</p>
         <div class="ni-field">
           <label for="ni-plot-api-source">连接方式</label>
           <select id="ni-plot-api-source">
-            <option value="main">使用主 API（清洗 API）</option>
-            <option value="custom">使用独立 API</option>
+            <option value="main">使用酒馆当前主 API</option>
+            <option value="custom">使用已保存的独立 API</option>
           </select>
         </div>
         <div id="ni-plot-api-custom-fields" style="display:none">
-          <div class="ni-field"><label>API URL</label><input type="text" id="ni-plot-api-url" placeholder="https://api.openai.com/v1/chat/completions"></div>
+          <div class="ni-field"><label>API 根地址</label><input type="text" id="ni-plot-api-url" placeholder="https://api.openai.com/v1"></div>
           <div class="ni-field"><label>API Key</label><input type="password" id="ni-plot-api-key" placeholder="sk-..."></div>
-          <div class="ni-field"><label>模型</label><input type="text" id="ni-plot-api-model" placeholder="gpt-4o-mini"></div>
+          <div class="ni-field ni-model-row">
+            <label>模型</label>
+            <div class="ni-model-field-wrap">
+              <div class="ni-model-input-wrap"><input type="text" id="ni-plot-api-model-filter" placeholder="筛选模型…" autocomplete="off"><select id="ni-plot-api-model"><option value="">请先拉取模型</option></select></div>
+              <button class="ni-icon-btn ni-model-refresh-btn" id="ni-plot-api-fetch-models" title="拉取模型列表"><i class="ti ti-refresh"></i></button>
+            </div>
+          </div>
+          <div class="ni-tool-row"><button class="ni-btn ni-btn-p ni-btn-inline" id="ni-plot-api-save"><i class="ti ti-device-floppy"></i>保存独立 API</button><span class="ni-title-note" id="ni-plot-api-save-note"></span></div>
         </div>
         <div class="ni-tool-row"><button class="ni-btn ni-btn-w ni-btn-inline" id="ni-plot-api-test"><i class="ti ti-plug-connected"></i>测试连接</button><span class="ni-title-note" id="ni-plot-api-test-note"></span></div>
       </div>
