@@ -22,7 +22,6 @@ import {
     messageFormatting,
     name1,
     substituteParams,
-    generateRaw,
 } from '/script.js';
 
 import {
@@ -1047,8 +1046,14 @@ async function niCopyText(text) {
 async function niCallPlotRewriteApi(messages, { test = false } = {}) {
     const cfg = extension_settings[EXT_NAME] || {};
     if ((cfg.plotApiSource || 'main') !== 'custom') {
-        // generateRaw 不指定 api，使用 SillyTavern 当前聊天选中的主 API、模型和连接配置。
-        return generateRaw({
+        // 不静态导入 generateRaw，避免不同 SillyTavern 版本因缺少导出而令整个插件加载失败。
+        // 运行到这里时才从酒馆上下文获取当前聊天的主 API 生成功能。
+        const context = getContext();
+        const generate = context?.generateRaw;
+        if (typeof generate !== 'function') {
+            throw new Error('当前 SillyTavern 版本未开放主 API 后台调用；请改用独立 API');
+        }
+        return generate({
             prompt: messages,
             responseLength: test ? 50 : 8000,
             trimNames: false,
