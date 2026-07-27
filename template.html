@@ -184,7 +184,7 @@
       <div class="ni-card" id="ni-vp-card">
         <div class="ni-ctitle">
           <span class="ni-ctitle-label"><i class="ti ti-vector"></i>向量化</span>
-          <span class="ni-vec-hint-inline" id="ni-vec-hint-inline" aria-live="polite"><i class="ti ti-info-circle" id="ni-vec-hint-icon"></i><span id="ni-vec-hint-text">各阶段独立索引，剧情页的阶段开关控制检索。</span></span>
+          <span class="ni-vec-hint-inline" id="ni-vec-hint-inline" aria-live="polite"><i class="ti ti-info-circle" id="ni-vec-hint-icon"></i><span id="ni-vec-hint-text">各阶段独立索引，阶段页开关控制检索。</span></span>
           <div class="ni-ctitle-prog" id="ni-vp-title-prog" style="display:none">
             <span class="ni-title-note" id="ni-vp-title-note"></span>
             <div class="ni-ctitle-prog-track">
@@ -736,47 +736,6 @@
         </div>
       </div>
 
-      <!-- 阶段管理已与剧情页合并 -->
-      <div class="ni-card" id="ni-plot-stage-card">
-        <div class="ni-ctitle" id="ni-stage-card-title">
-          <span class="ni-ctitle-label"><i class="ti ti-layout-list"></i>剧情阶段<span class="ni-ml" id="ni-stage-active-lbl">—</span></span>
-          <button class="ni-icon-btn" id="ni-stage-prompt-btn" title="编辑提示词"><i class="ti ti-code"></i></button>
-          <button class="ni-icon-btn" id="ni-vec-off-btn" title="关闭向量化注入（有向量数据但暂不调用）" style="display:none"><i class="ti ti-vector-off"></i></button>
-          <div class="ni-stage-gen-btns">
-            <div class="ni-ctitle-prog" id="ni-stage-title-prog" style="display:none">
-              <span class="ni-title-note" id="ni-stage-title-note"></span>
-              <div class="ni-ctitle-prog-track">
-                <div class="ni-ctitle-prog-bar" id="ni-stage-title-bar" style="width:0%"></div>
-              </div>
-            </div>
-            <button class="ni-gen-btn" id="ni-btn-gen-stages-empty" title="仅生成尚无概括的阶段，已有概括保持不变">
-              <i class="ti ti-sparkles"></i>补全空白
-            </button>
-            <button class="ni-gen-btn" id="ni-btn-gen-stages" title="生成所有阶段的标题和概括（已有概括也会覆盖）">
-              <i class="ti ti-sparkles"></i>全部生成
-            </button>
-          </div>
-        </div>
-        <div class="ni-prompt-box" id="ni-stage-pb">
-          <div class="ni-pt-toolbar">
-            <label class="ni-toggle-label">
-              <input type="checkbox" id="ni-stage-pt-enabled" checked>
-              <span>启用演绎提示词</span>
-            </label>
-            <button class="ni-pt-reset" id="ni-stage-pt-reset" title="恢复默认提示词"><i class="ti ti-rotate"></i></button>
-          </div>
-          <div class="ni-pt-wrap">
-            <textarea id="ni-stage-pt-content" class="ni-pt-textarea" spellcheck="false"></textarea>
-          </div>
-        </div>
-        <div class="ni-hint-box"><i class="ti ti-info-circle"></i>已向量＋开启 → 语义向量召回；未向量＋开启 → 按设置页的「未向量阶段注入」模式注入；关闭 → 完全跳过。</div>
-        <div class="ni-stage-bulk-row">
-          <button class="ni-bulk-btn on" id="ni-stage-enable-all" title="开启所有阶段"><i class="ti ti-check"></i>全部开启</button>
-          <button class="ni-bulk-btn off" id="ni-stage-disable-all" title="关闭所有阶段"><i class="ti ti-x"></i>全部关闭</button>
-        </div>
-        <div id="ni-stage-list"><div class="ni-empty"><i class="ti ti-layout-list"></i>请先在处理页完成清洗</div></div>
-      </div>
-
       <div class="ni-card">
         <div class="ni-ctitle">
           <i class="ti ti-sitemap"></i>关键剧情
@@ -1252,19 +1211,6 @@
         </div>
       </div>
 
-      <!-- 未向量阶段注入 -->
-      <div class="ni-card">
-        <div class="ni-ctitle"><span class="ni-ctitle-label"><i class="ti ti-file-description"></i>未向量阶段注入</span></div>
-        <p class="ni-desc">已启用但尚未向量化的阶段，发送消息时使用以下内容注入。</p>
-        <div class="ni-stage-inj-mode-wrap ni-settings-raw-mode">
-          <label class="ni-stage-inj-mode-lbl" for="ni-raw-inj-mode">注入内容</label>
-          <select id="ni-raw-inj-mode" class="ni-stage-inj-mode-sel">
-            <option value="nodes" selected>剧情节点</option>
-            <option value="compressed">压缩原文</option>
-          </select>
-        </div>
-      </div>
-
       <!-- 3. 小说库-->
       <div class="ni-card">
         <div class="ni-ctitle">
@@ -1314,17 +1260,56 @@
 
     </div>
 
-    <!-- ========== PAGE: CURRENT ==========-->
-    <div class="ni-page" id="ni-pg-current">
+    <!-- ========== PAGE: STAGES ==========-->
+    <div class="ni-page" id="ni-pg-stage">
       <div class="ni-card">
-        <div class="ni-ctitle">
-          <span class="ni-ctitle-label"><i class="ti ti-current-location"></i>当前剧情</span>
-          <span class="ni-ml" id="ni-current-count-lbl">—</span>
+        <div class="ni-ctitle" id="ni-stage-card-title">
+          <span class="ni-ctitle-label"><i class="ti ti-layout-list"></i>剧情阶段<span class="ni-ml" id="ni-stage-active-lbl">—</span></span>
+          <button class="ni-icon-btn" id="ni-stage-prompt-btn" title="编辑提示词"><i class="ti ti-code"></i></button>
+          <button class="ni-icon-btn" id="ni-vec-off-btn" title="关闭向量化注入（有向量数据但暂不调用）" style="display:none"><i class="ti ti-vector-off"></i></button>
+          <div class="ni-stage-gen-btns">
+            <div class="ni-ctitle-prog" id="ni-stage-title-prog" style="display:none">
+              <span class="ni-title-note" id="ni-stage-title-note"></span>
+              <div class="ni-ctitle-prog-track">
+                <div class="ni-ctitle-prog-bar" id="ni-stage-title-bar" style="width:0%"></div>
+              </div>
+            </div>
+            <button class="ni-gen-btn" id="ni-btn-gen-stages-empty" title="仅生成尚无概括的阶段，已有概括保持不变">
+              <i class="ti ti-sparkles"></i>补全空白
+            </button>
+            <button class="ni-gen-btn" id="ni-btn-gen-stages" title="生成所有阶段的标题和概括（已有概括也会覆盖）">
+              <i class="ti ti-sparkles"></i>全部生成
+            </button>
+          </div>
         </div>
-        <p class="ni-desc">仅显示当前已启用阶段中尚未归档的节点；主线、支线和关键转折按原著顺序排列。</p>
-        <div id="ni-current-stage-list"><div class="ni-empty"><i class="ti ti-timeline"></i>暂无可显示的节点</div></div>
+        <div class="ni-prompt-box" id="ni-stage-pb">
+          <div class="ni-pt-toolbar">
+            <label class="ni-toggle-label">
+              <input type="checkbox" id="ni-stage-pt-enabled" checked>
+              <span>启用演绎提示词</span>
+            </label>
+            <button class="ni-pt-reset" id="ni-stage-pt-reset" title="恢复默认提示词"><i class="ti ti-rotate"></i></button>
+          </div>
+          <div class="ni-pt-wrap">
+            <textarea id="ni-stage-pt-content" class="ni-pt-textarea" spellcheck="false"></textarea>
+          </div>
+        </div>
+        <div class="ni-hint-box"><i class="ti ti-info-circle"></i>已向量＋开启 → 语义向量召回；未向量＋开启 → 按右侧「未向量注入」模式注入；关闭 → 完全跳过。</div>
+        <div class="ni-stage-bulk-row">
+          <div class="ni-stage-inj-mode-wrap">
+            <label class="ni-stage-inj-mode-lbl">未向量注入</label>
+            <select id="ni-raw-inj-mode" class="ni-stage-inj-mode-sel">
+              <option value="nodes" selected>剧情节点</option>
+              <option value="compressed">压缩原文</option>
+            </select>
+          </div>
+          <button class="ni-bulk-btn on" id="ni-stage-enable-all" title="开启所有阶段"><i class="ti ti-check"></i>全部开启</button>
+          <button class="ni-bulk-btn off" id="ni-stage-disable-all" title="关闭所有阶段"><i class="ti ti-x"></i>全部关闭</button>
+        </div>
+        <div id="ni-stage-list"><div class="ni-empty"><i class="ti ti-layout-list"></i>请先在处理页完成清洗</div></div>
       </div>
     </div>
+
   </div>
 
   <!-- 向量诊断弹窗：替代移动端会截断长文本的原生 alert -->
@@ -1343,7 +1328,7 @@
     <button class="ni-nav-btn on" data-page="process"><i class="ti ti-tool"></i>处理</button>
     <button class="ni-nav-btn" data-page="plot"><i class="ti ti-sitemap"></i>剧情</button>
     <button class="ni-nav-btn" data-page="char"><i class="ti ti-users"></i>角色</button>
-    <button class="ni-nav-btn" data-page="current"><i class="ti ti-current-location"></i>当前</button>
+    <button class="ni-nav-btn" data-page="stage"><i class="ti ti-layout-list"></i>阶段</button>
     <button class="ni-nav-btn" data-page="settings"><i class="ti ti-settings-2"></i>设置</button>
   </div>
 </div>

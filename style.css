@@ -3709,15 +3709,3 @@ select.ni-modal-input {
 #ni-storybar.ni-tb-theme-follow .ni-tb-scard.far {
   background: var(--ni-success-soft-2, var(--color-background-secondary, #f7f7f8));
 }
-
-/* Current page and stage folders */
-.ni-stage-folder-head,.ni-current-stage-head{width:100%;border:0;border-top:.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);color:var(--color-text-primary);display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;cursor:pointer;font:inherit;text-align:left}
-.ni-stage-folder-head>span,.ni-current-stage-head>span{display:flex;align-items:center;gap:5px}
-.ni-stage-folder-count,.ni-current-stage-head>span:last-child{font-size:10px;color:var(--color-text-tertiary);white-space:nowrap}
-.ni-stage-folder-body,.ni-current-stage-body{padding:7px 10px 2px;background:var(--color-background-primary)}
-.ni-stage-folder-timeline,.ni-current-timeline{margin-top:2px}
-.ni-current-stage-folder{border:.5px solid var(--color-border-tertiary);border-radius:10px;overflow:hidden;margin-bottom:8px;background:var(--color-background-primary)}
-.ni-current-stage-head{border-top:0;font-weight:600;color:var(--ni-primary,#A0445E)}
-.ni-current-tl-head{display:flex;align-items:center;gap:7px;padding:8px;cursor:pointer;user-select:none}
-.ni-current-empty-stage,.ni-stage-folder-empty{padding:14px 8px}
-.ni-settings-raw-mode{justify-content:flex-start;gap:12px}

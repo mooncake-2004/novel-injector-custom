@@ -961,31 +961,6 @@ function niSyncDevAutoUI({ syncNote = false } = {}) {
 // ============================================================
 // 页面切换
 // ============================================================
-function niRenderCurrentPage() {
-    const list = q('#ni-current-stage-list');
-    if (!list) return;
-    const nodes = (typeof niGetTbNodes === 'function' ? niGetTbNodes() : []).filter(node => !node.done);
-    const stages = (typeof niGetTbStages === 'function' ? niGetTbStages() : []).filter(stage => S.stageStates?.[stage.stageIdx] !== false);
-    const count = q('#ni-current-count-lbl');
-    if (count) count.textContent = `启用 ${stages.length} 阶段 · 未归档 ${nodes.length} 节点`;
-    if (!stages.length) {
-        list.innerHTML = '<div class="ni-empty"><i class="ti ti-layout-list"></i>当前没有已启用阶段</div>';
-        return;
-    }
-    const typeMeta = { main: ['主线', 'ni-bp'], sub: ['支线', 'ni-bt'], pivot: ['转折', 'ni-bc'] };
-    list.innerHTML = stages.map(stage => {
-        const stageNodes = nodes.filter(node => Number(node.stageIdx) === Number(stage.stageIdx)).sort(niComparePlotOrder);
-        const timeline = stageNodes.length ? `<div class="ni-timeline ni-current-timeline">${stageNodes.map((node, index) => {
-            const [label, cls] = typeMeta[node.type] || typeMeta.main;
-            const id = `ni-cur-tl-${stage.stageIdx}-${index}`;
-            const meta = (node.time || node.location) ? `<div class="ni-tl-meta">${node.time ? `<span class="ni-pmeta"><i class="ti ti-clock"></i>${niEscHtml(node.time)}</span>` : ''}${node.location ? `<span class="ni-pmeta"><i class="ti ti-map-pin"></i>${niEscHtml(node.location)}</span>` : ''}</div>` : '';
-            return `<div class="ni-tl-item${node.type === 'pivot' ? ' ni-tl-pivot' : ''}" id="${id}"><div class="ni-tl-spine"><div class="ni-tl-dot${node.type === 'pivot' ? ' ni-tl-dot-pivot' : ''}"></div><div class="ni-tl-line"></div></div><div class="ni-tl-content"><div class="ni-current-tl-head" data-current-tl-id="${id}"><span class="ni-badge ${cls}">${label}</span><span class="ni-plot-name">${niEscHtml(node.title || '（未命名）')}</span><i class="ti ti-chevron-down ni-plot-chev"></i></div><div class="ni-tl-body"><p class="ni-plot-txt">${niEscHtml(node.body || '')}</p>${meta}</div></div></div>`;
-        }).join('')}</div>` : '<div class="ni-empty ni-current-empty-stage">本阶段节点均已归档</div>';
-        return `<section class="ni-current-stage-folder"><button type="button" class="ni-current-stage-head" data-current-stage="${stage.stageIdx}" aria-expanded="true"><span><i class="ti ti-folder-open"></i>第 ${stage.stageIdx} 阶段 · ${niEscHtml(stage.title || `阶段 ${stage.stageIdx}`)}</span><span>${stageNodes.length} 个未归档 <i class="ti ti-chevron-up"></i></span></button><div class="ni-current-stage-body" id="ni-current-stage-${stage.stageIdx}">${timeline}</div></section>`;
-    }).join('');
-}
-window.niRenderCurrentPage = niRenderCurrentPage;
-
 function niSwitchPage(name, btn) {
     qa('.ni-page').forEach(p => p.classList.remove('on'));
     q(`#ni-pg-${name}`)?.classList.add('on');
@@ -3677,9 +3652,8 @@ jQuery(async () => {
         const page = $(this).data('page');
         if (page) {
             niSwitchPage(page, this);
-            // 剧情页包含阶段管理；当前页实时读取启用和归档状态
-            if (page === 'plot') niBuildStagesWithChunksIfNeeded();
-            if (page === 'current') niRenderCurrentPage();
+            // 切换到阶段页时强制刷新，确保向量化状态标签实时更新
+            if (page === 'stage') niBuildStagesWithChunksIfNeeded();
         }
     });
 
@@ -4167,30 +4141,6 @@ jQuery(async () => {
         // 手动触发 change 事件，统一走 change 分支
         $(cb).trigger('change');
     });
-    $app.on('click', '.ni-stage-folder-head', function() {
-        const idx = parseInt($(this).data('stage-folder'));
-        const body = q(`#ni-stage-folder-${idx}`);
-        if (!body) return;
-        const open = body.style.display === 'none';
-        body.style.display = open ? '' : 'none';
-        this.setAttribute('aria-expanded', String(open));
-        $(this).find('.ti-chevron-down, .ti-chevron-up').attr('class', `ti ${open ? 'ti-chevron-up' : 'ti-chevron-down'}`);
-        $(this).find('.ti-folder, .ti-folder-open').first().attr('class', `ti ${open ? 'ti-folder-open' : 'ti-folder'}`);
-    });
-    $app.on('click', '.ni-current-stage-head', function() {
-        const idx = parseInt($(this).data('current-stage'));
-        const body = q(`#ni-current-stage-${idx}`);
-        if (!body) return;
-        const open = body.style.display === 'none';
-        body.style.display = open ? '' : 'none';
-        this.setAttribute('aria-expanded', String(open));
-        $(this).find('.ti-chevron-down, .ti-chevron-up').attr('class', `ti ${open ? 'ti-chevron-up' : 'ti-chevron-down'}`);
-        $(this).find('.ti-folder, .ti-folder-open').first().attr('class', `ti ${open ? 'ti-folder-open' : 'ti-folder'}`);
-    });
-    $app.on('click', '.ni-current-tl-head', function() {
-        q(`#${$(this).data('current-tl-id')}`)?.classList.toggle('open');
-    });
-
     $app.on('click', '#ni-stage-enable-all', () => {
         const n = S.stageMapN;
         for (let i = 1; i <= n; i++) {
@@ -4639,7 +4589,7 @@ jQuery(document).ready(function () {
         niTbSyncPauseUI();
         niRefreshUserSubDependents({ rerenderUserSub: true });
         // 短暂延迟等对话 DOM 就绪
-        setTimeout(() => { niTbRenderStoryBar(); niRenderCurrentPage(); }, 300);
+        setTimeout(() => niTbRenderStoryBar(), 300);
     });
 
     // 剧情页打开时初始化穿书模式 UI；保留设置页触发兼容旧布局
