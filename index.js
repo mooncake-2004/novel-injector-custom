@@ -22,6 +22,7 @@ import {
     messageFormatting,
     name1,
     substituteParams,
+    generateRaw,
 } from '/script.js';
 
 import {
@@ -210,8 +211,8 @@ const DEFAULT_SETTINGS = {
     cleanStream: false,
     plotApiSource: 'main',
     plotApiKey: '',
-    plotApiUrl: 'https://api.openai.com/v1/chat/completions',
-    plotApiModel: 'gpt-4o-mini',
+    plotApiUrl: 'https://api.openai.com/v1',
+    plotApiModel: '',
     vecKey: '',
     vecUrl: 'https://api.openai.com/v1',
     vecModel: 'text-embedding-3-large',
@@ -505,6 +506,9 @@ function niLoadSettings() {
     Object.keys(DEFAULT_SETTINGS).forEach(k => {
         if (saved[k] === undefined) saved[k] = DEFAULT_SETTINGS[k];
     });
+    // v2 剧情 API 改为填写 /v1 根地址；迁移上一版自动写入的 completions 示例值。
+    if (saved.plotApiUrl === 'https://api.openai.com/v1/chat/completions') saved.plotApiUrl = DEFAULT_SETTINGS.plotApiUrl;
+    if (saved.plotApiModel === 'gpt-4o-mini' && saved.plotApiSource !== 'custom') saved.plotApiModel = '';
     if (niNormalizeVectorInjectionPreference(saved)) saveSettingsDebounced();
     if (saved._charAutoSleepInitialized !== true) {
         saved.charAutoSleepEnabled = true;
@@ -638,7 +642,7 @@ function niSaveSettings() {
     cfg.plotApiSource = q('#ni-plot-api-source')?.value === 'custom' ? 'custom' : 'main';
     cfg.plotApiKey = q('#ni-plot-api-key')?.value ?? cfg.plotApiKey;
     cfg.plotApiUrl = q('#ni-plot-api-url')?.value?.trim() || cfg.plotApiUrl;
-    cfg.plotApiModel = q('#ni-plot-api-model')?.value?.trim() || cfg.plotApiModel;
+    cfg.plotApiModel = niPlotApiSelectedModel || q('#ni-plot-api-model')?.value || cfg.plotApiModel;
     cfg.vecKey      = q('#ni-vec-key')?.value || cfg.vecKey;
     cfg.vecUrl      = q('#ni-vec-url')?.value || cfg.vecUrl;
     cfg.vecModel    = q('#ni-vec-model')?.value || cfg.vecModel;
@@ -742,7 +746,11 @@ function syncSettingsToUI() {
     sv('#ni-plot-api-source', cfg.plotApiSource || DEFAULT_SETTINGS.plotApiSource);
     sv('#ni-plot-api-key', cfg.plotApiKey || '');
     sv('#ni-plot-api-url', cfg.plotApiUrl || DEFAULT_SETTINGS.plotApiUrl);
-    sv('#ni-plot-api-model', cfg.plotApiModel || DEFAULT_SETTINGS.plotApiModel);
+    const savedPlotModel = cfg.plotApiModel || DEFAULT_SETTINGS.plotApiModel;
+    niPlotApiSelectedModel = savedPlotModel;
+    niPlotApiModelIds = savedPlotModel ? [savedPlotModel] : [];
+    niRenderPlotApiModels('');
+    if (savedPlotModel && q('#ni-plot-api-model')) q('#ni-plot-api-model').value = savedPlotModel;
     niSyncPlotApiUI();
     const streamEl = q('#ni-clean-stream');
     if (streamEl) {
@@ -981,6 +989,42 @@ function niSyncPlotApiUI() {
     const fields = q('#ni-plot-api-custom-fields');
     if (fields) fields.style.display = custom ? '' : 'none';
 }
+let niPlotApiModelIds = [];
+let niPlotApiSelectedModel = ;
+function niRenderPlotApiModels(filter = '') {
+    const select = q('#ni-plot-api-model');
+    if (!select) return;
+    const keyword = String(filter || '').trim().toLowerCase();
+    const current = niPlotApiSelectedModel || select.value || extension_settings[EXT_NAME]?.plotApiModel || '';
+    const visible = niPlotApiModelIds.filter(id => !keyword || id.toLowerCase().includes(keyword));
+    select.innerHTML = `<option value="">${visible.length ? '请选择模型' : '没有匹配模型'}</option>` + visible.map(id => `<option value="${niEscAttr(id)}">${niEscHtml(id)}</option>`).join('');
+    if (visible.includes(current)) select.value = current;
+    select.onchange = () => { niPlotApiSelectedModel = select.value || ''; };
+}
+async function niFetchPlotApiModels() {
+    const url = q('#ni-plot-api-url')?.value?.trim();
+    const key = q('#ni-plot-api-key')?.value?.trim();
+    const button = q('#ni-plot-api-fetch-models');
+    if (!url) { alert('请先填写 API 根地址，例如 https://example.com/v1'); return; }
+    if (button) { button.disabled = true; button.querySelector('i').className = 'ti ti-loader'; }
+    try {
+        const modelsUrl = `${url.replace(/\/chat\/completions\/?$/, '').replace(/\/$/, '')}/models`;
+        const response = await fetch(modelsUrl, { headers: { ...(key ? { Authorization: `Bearer ${key}` } : {}), 'Content-Type': 'application/json' } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        const items = payload?.data || payload?.models || [];
+        niPlotApiModelIds = [...new Set((Array.isArray(items) ? items : []).map(item => typeof item === 'string' ? item : item?.id).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b));
+        if (!niPlotApiModelIds.length) throw new Error('接口没有返回模型');
+        q('#ni-plot-api-model-filter').value = '';
+        niPlotApiSelectedModel = extension_settings[EXT_NAME]?.plotApiModel || '';
+        niRenderPlotApiModels('');
+        globalThis.toastr?.success(`已拉取 ${niPlotApiModelIds.length} 个模型，可输入关键词筛选`);
+    } catch (error) {
+        alert(`模型拉取失败：${error?.message || error}`);
+    } finally {
+        if (button) { button.disabled = false; button.querySelector('i').className = 'ti ti-refresh'; }
+    }
+}
 
 function niFindPlotByNodeId(type, nodeId) {
     if (!['main', 'sub', 'pivot'].includes(type)) return null;
@@ -1003,12 +1047,17 @@ async function niCopyText(text) {
 async function niCallPlotRewriteApi(messages, { test = false } = {}) {
     const cfg = extension_settings[EXT_NAME] || {};
     if ((cfg.plotApiSource || 'main') !== 'custom') {
-        return callApiSeq(messages, { responseLength: test ? 50 : 8000 });
+        // generateRaw 不指定 api，使用 SillyTavern 当前聊天选中的主 API、模型和连接配置。
+        return generateRaw({
+            prompt: messages,
+            responseLength: test ? 50 : 8000,
+            trimNames: false,
+        });
     }
     const url = String(cfg.plotApiUrl || '').trim();
     const key = String(cfg.plotApiKey || '').trim();
     const model = String(cfg.plotApiModel || '').trim();
-    if (!url || !model) throw new Error('请先在设置页填写独立 API URL 和模型');
+    if (!url || !model) throw new Error('请先填写 API 根地址、拉取并选择模型，然后保存');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), Math.max(1, Number(cfg.apiTimeoutMin) || 15) * 60 * 1000);
     try {
@@ -4139,9 +4188,31 @@ jQuery(async () => {
     $app.on('click', '#ni-plot-rewrite-modal', function(e) { if (e.target === this) niClosePlotRewrite(); });
     $app.on('click', '#ni-plot-rewrite-submit', () => niSubmitPlotRewrite());
     $app.on('change', '#ni-plot-api-source', function() { niSyncPlotApiUI(); niSaveSettings(); });
-    $app.on('input change', '#ni-plot-api-url, #ni-plot-api-key, #ni-plot-api-model', () => niSaveSettings());
+    $app.on('click', '#ni-plot-api-fetch-models', () => niFetchPlotApiModels());
+    $app.on('input', '#ni-plot-api-model-filter', function() { niRenderPlotApiModels(this.value); });
+    $app.on('click', '#ni-plot-api-save', function() {
+        const cfg = extension_settings[EXT_NAME] || {};
+        cfg.plotApiUrl = q('#ni-plot-api-url')?.value?.trim() || DEFAULT_SETTINGS.plotApiUrl;
+        cfg.plotApiKey = q('#ni-plot-api-key')?.value ?? '';
+        cfg.plotApiModel = niPlotApiSelectedModel || q('#ni-plot-api-model')?.value || '';
+        cfg.plotApiSource = 'custom';
+        if (!cfg.plotApiModel) { alert('请先拉取并选择模型'); return; }
+        q('#ni-plot-api-source').value = 'custom';
+        saveSettingsDebounced();
+        const note = q('#ni-plot-api-save-note');
+        if (note) { note.textContent = '已保存'; setTimeout(() => { if (note.textContent === '已保存') note.textContent = ''; }, 1800); }
+    });
     $app.on('click', '#ni-plot-api-test', async function() {
-        niSaveSettings();
+        // 独立 API 测试使用界面当前值，主 API 测试使用酒馆当前连接。
+        if (q('#ni-plot-api-source')?.value === 'custom') {
+            const cfg = extension_settings[EXT_NAME] || {};
+            cfg.plotApiUrl = q('#ni-plot-api-url')?.value?.trim() || DEFAULT_SETTINGS.plotApiUrl;
+            cfg.plotApiKey = q('#ni-plot-api-key')?.value ?? '';
+            cfg.plotApiModel = niPlotApiSelectedModel || q('#ni-plot-api-model')?.value || '';
+            cfg.plotApiSource = 'custom';
+        } else {
+            extension_settings[EXT_NAME].plotApiSource = 'main';
+        }
         const note = q('#ni-plot-api-test-note');
         this.disabled = true; if (note) note.textContent = '连接中…';
         try { await niCallPlotRewriteApi([{ role: 'user', content: '只回复：连接成功' }], { test: true }); if (note) note.textContent = '连接成功'; }
