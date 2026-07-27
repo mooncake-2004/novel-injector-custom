@@ -1102,7 +1102,7 @@ function niRenderCurrentPage() {
             const [label, cls] = typeMeta[node.type] || typeMeta.main;
             const id = `ni-cur-tl-${stage.stageIdx}-${index}`;
             const meta = (node.time || node.location) ? `<div class="ni-tl-meta">${node.time ? `<span class="ni-pmeta"><i class="ti ti-clock"></i>${niEscHtml(node.time)}</span>` : ''}${node.location ? `<span class="ni-pmeta"><i class="ti ti-map-pin"></i>${niEscHtml(node.location)}</span>` : ''}</div>` : '';
-            return `<div class="ni-tl-item${node.type === 'pivot' ? ' ni-tl-pivot' : ''}" id="${id}"><div class="ni-tl-spine"><div class="ni-tl-dot${node.type === 'pivot' ? ' ni-tl-dot-pivot' : ''}"></div><div class="ni-tl-line"></div></div><div class="ni-tl-content"><div class="ni-current-tl-head" data-current-tl-id="${id}"><span class="ni-badge ${cls}">${label}</span><span class="ni-plot-name">${niEscHtml(node.title || '（未命名）')}</span><i class="ti ti-chevron-down ni-plot-chev"></i></div><div class="ni-tl-body"><p class="ni-plot-txt">${niEscHtml(node.body || '')}</p><div class="ni-plot-node-actions"><button type="button" class="ni-plot-copy-btn" data-plot-type="${node.type}" data-node-id="${niEscAttr(node.id)}"><i class="ti ti-copy"></i>复制</button><button type="button" class="ni-plot-ai-rewrite-btn" data-plot-type="${node.type}" data-node-id="${niEscAttr(node.id)}"><i class="ti ti-wand"></i>AI 修改</button></div>${meta}</div></div></div>`;
+            return `<div class="ni-tl-item${node.type === 'pivot' ? ' ni-tl-pivot' : ''}" id="${id}"><div class="ni-tl-spine"><div class="ni-tl-dot${node.type === 'pivot' ? ' ni-tl-dot-pivot' : ''}"></div><div class="ni-tl-line"></div></div><div class="ni-tl-content"><div class="ni-current-tl-head" data-current-tl-id="${id}"><span class="ni-badge ${cls}">${label}</span><span class="ni-plot-name">${niEscHtml(node.title || '（未命名）')}</span><i class="ti ti-chevron-down ni-plot-chev"></i></div><div class="ni-tl-body"><p class="ni-plot-txt">${niEscHtml(node.body || '')}</p><div class="ni-plot-node-actions"><button type="button" class="ni-current-archive-btn" data-node-id="${niEscAttr(node.id)}"><i class="ti ti-archive"></i>归档</button><button type="button" class="ni-plot-copy-btn" data-plot-type="${node.type}" data-node-id="${niEscAttr(node.id)}"><i class="ti ti-copy"></i>复制</button><button type="button" class="ni-plot-ai-rewrite-btn" data-plot-type="${node.type}" data-node-id="${niEscAttr(node.id)}"><i class="ti ti-wand"></i>AI 修改</button></div>${meta}</div></div></div>`;
         }).join('')}</div>` : '<div class="ni-empty ni-current-empty-stage">本阶段节点均已归档</div>';
         return `<section class="ni-current-stage-folder"><button type="button" class="ni-current-stage-head" data-current-stage="${stage.stageIdx}" aria-expanded="true"><span><i class="ti ti-folder-open"></i>第 ${stage.stageIdx} 阶段 · ${niEscHtml(stage.title || `阶段 ${stage.stageIdx}`)}</span><span>${stageNodes.length} 个未归档 <i class="ti ti-chevron-up"></i></span></button><div class="ni-current-stage-body" id="ni-current-stage-${stage.stageIdx}">${timeline}</div></section>`;
     }).join('');
@@ -4109,6 +4109,20 @@ jQuery(async () => {
     $app.on('click', '#ni-char-del-cancel-btn', () => niToggleCharDel());
     // 删除模式：确认删除
     $app.on('click', '#ni-char-del-confirm-btn', () => niConfirmCharDel());
+
+    $app.on('click', '.ni-current-archive-btn', async function(e) {
+        e.preventDefault(); e.stopPropagation();
+        const nodeId = String($(this).data('node-id') || '');
+        const nodes = niGetTbNodes();
+        const index = nodes.findIndex(node => node.id === nodeId || node.legacyId === nodeId);
+        if (index < 0) { globalThis.toastr?.error('找不到这个剧情节点'); return; }
+        if (!confirm(`确定归档「${nodes[index].title || '此节点'}」吗？`)) return;
+        try {
+            await niTbToggleCheck(index);
+            niRenderCurrentPage();
+            globalThis.toastr?.success('节点已归档');
+        } catch (error) { alert(`归档失败：${error?.message || error}`); }
+    });
 
     $app.on('click', '.ni-plot-copy-btn', async function(e) {
         e.preventDefault(); e.stopPropagation();
