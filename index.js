@@ -210,8 +210,8 @@ const DEFAULT_SETTINGS = {
     cleanStream: false,
     plotApiSource: 'main',
     plotApiKey: '',
-    plotApiUrl: 'https://api.openai.com/v1/chat/completions',
-    plotApiModel: 'gpt-4o-mini',
+    plotApiUrl: 'https://api.openai.com/v1',
+    plotApiModel: '',
     vecKey: '',
     vecUrl: 'https://api.openai.com/v1',
     vecModel: 'text-embedding-3-large',
@@ -638,7 +638,7 @@ function niSaveSettings() {
     cfg.plotApiSource = q('#ni-plot-api-source')?.value === 'custom' ? 'custom' : 'main';
     cfg.plotApiKey = q('#ni-plot-api-key')?.value ?? cfg.plotApiKey;
     cfg.plotApiUrl = q('#ni-plot-api-url')?.value?.trim() || cfg.plotApiUrl;
-    cfg.plotApiModel = q('#ni-plot-api-model')?.value?.trim() || cfg.plotApiModel;
+    cfg.plotApiModel = niPlotApiSelectedModel || q('#ni-plot-api-model')?.value || cfg.plotApiModel;
     cfg.vecKey      = q('#ni-vec-key')?.value || cfg.vecKey;
     cfg.vecUrl      = q('#ni-vec-url')?.value || cfg.vecUrl;
     cfg.vecModel    = q('#ni-vec-model')?.value || cfg.vecModel;
@@ -742,7 +742,11 @@ function syncSettingsToUI() {
     sv('#ni-plot-api-source', cfg.plotApiSource || DEFAULT_SETTINGS.plotApiSource);
     sv('#ni-plot-api-key', cfg.plotApiKey || '');
     sv('#ni-plot-api-url', cfg.plotApiUrl || DEFAULT_SETTINGS.plotApiUrl);
-    sv('#ni-plot-api-model', cfg.plotApiModel || DEFAULT_SETTINGS.plotApiModel);
+    const savedPlotModel = cfg.plotApiModel || DEFAULT_SETTINGS.plotApiModel;
+    niPlotApiSelectedModel = savedPlotModel;
+    niPlotApiModelIds = savedPlotModel ? [savedPlotModel] : [];
+    niRenderPlotApiModelList('');
+    if (savedPlotModel && q('#ni-plot-api-model')) q('#ni-plot-api-model').value = savedPlotModel;
     niSyncPlotApiUI();
     const streamEl = q('#ni-clean-stream');
     if (streamEl) {
@@ -980,6 +984,53 @@ function niSyncPlotApiUI() {
     const custom = q('#ni-plot-api-source')?.value === 'custom';
     const fields = q('#ni-plot-api-custom-fields');
     if (fields) fields.style.display = custom ? '' : 'none';
+}
+
+// 仅保存在本页运行期，先不新增独立的“保存 API”逻辑，避免再次影响插件初始化。
+let niPlotApiModelIds = [];
+let niPlotApiSelectedModel = '';
+function niRenderPlotApiModelList(filter = '') {
+    const select = q('#ni-plot-api-model');
+    if (!select) return;
+    const keyword = String(filter || '').trim().toLowerCase();
+    const current = niPlotApiSelectedModel || select.value || extension_settings[EXT_NAME]?.plotApiModel || '';
+    const visible = niPlotApiModelIds.filter(id => !keyword || id.toLowerCase().includes(keyword));
+    select.innerHTML = `<option value="">${visible.length ? '请选择模型' : '没有匹配模型'}</option>` + visible.map(id => `<option value="${niEscAttr(id)}">${niEscHtml(id)}</option>`).join('');
+    if (visible.includes(current)) select.value = current;
+    select.onchange = () => {
+        niPlotApiSelectedModel = select.value || '';
+        const cfg = extension_settings[EXT_NAME] || {};
+        cfg.plotApiModel = niPlotApiSelectedModel;
+        saveSettingsDebounced();
+    };
+}
+
+async function niFetchPlotApiModelList() {
+    const root = q('#ni-plot-api-url')?.value?.trim();
+    const key = q('#ni-plot-api-key')?.value?.trim();
+    const button = q('#ni-plot-api-fetch-models');
+    if (!root) { alert('请先填写 API 根地址，例如 https://example.com/v1'); return; }
+    if (button) { button.disabled = true; button.querySelector('i').className = 'ti ti-loader'; }
+    try {
+        const modelsUrl = `${root.replace(/\/chat\/completions\/?$/, '').replace(/\/$/, '')}/models`;
+        const response = await fetch(modelsUrl, {
+            headers: { ...(key ? { Authorization: `Bearer ${key}` } : {}), 'Content-Type': 'application/json' },
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        const items = payload?.data || payload?.models || [];
+        niPlotApiModelIds = [...new Set((Array.isArray(items) ? items : []).map(item => typeof item === 'string' ? item : item?.id).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b));
+        if (!niPlotApiModelIds.length) throw new Error('接口没有返回模型');
+        niPlotApiSelectedModel = extension_settings[EXT_NAME]?.plotApiModel || '';
+        const filter = q('#ni-plot-api-model-filter');
+        if (filter) filter.value = '';
+        niRenderPlotApiModelList('');
+        globalThis.toastr?.success(`已拉取 ${niPlotApiModelIds.length} 个模型`);
+    } catch (error) {
+        alert(`模型拉取失败：${error?.message || error}`);
+    } finally {
+        if (button) { button.disabled = false; button.querySelector('i').className = 'ti ti-refresh'; }
+    }
 }
 
 function niFindPlotByNodeId(type, nodeId) {
@@ -4153,7 +4204,9 @@ jQuery(async () => {
     $app.on('click', '#ni-plot-rewrite-modal', function(e) { if (e.target === this) niClosePlotRewrite(); });
     $app.on('click', '#ni-plot-rewrite-submit', () => niSubmitPlotRewrite());
     $app.on('change', '#ni-plot-api-source', function() { niSyncPlotApiUI(); niSaveSettings(); });
-    $app.on('input change', '#ni-plot-api-url, #ni-plot-api-key, #ni-plot-api-model', () => niSaveSettings());
+    $app.on('input change', '#ni-plot-api-url, #ni-plot-api-key', () => niSaveSettings());
+    $app.on('click', '#ni-plot-api-fetch-models', () => niFetchPlotApiModelList());
+    $app.on('input', '#ni-plot-api-model-filter', function() { niRenderPlotApiModelList(this.value); });
     $app.on('click', '#ni-plot-api-test', async function() {
         niSaveSettings();
         const note = q('#ni-plot-api-test-note');

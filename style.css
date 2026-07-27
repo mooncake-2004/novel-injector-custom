@@ -3731,3 +3731,5 @@ select.ni-modal-input {
 .ni-plot-rewrite-target{margin:0 0 10px;padding:8px 10px;border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-secondary);font-size:11px;line-height:1.5}
 #ni-plot-api-custom-fields{padding:8px 10px 1px;margin-bottom:8px;border-radius:8px;background:var(--color-background-secondary)}
 #ni-plot-api-test-note{overflow-wrap:anywhere}
+#ni-plot-api-model-filter{flex:0 0 42%;border-radius:8px 0 0 8px}
+#ni-plot-api-model{flex:1;border-radius:0 8px 8px 0;border-left:0}
